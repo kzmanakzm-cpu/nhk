@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NHK アナログ時計</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --stripe-a: #6eb4e4;
+      --stripe-b: #559dce;
+      --stripe-c: #6dc0ec;
+      --face: #050608;
+      --mark: #f5f5f5;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Meiryo", system-ui, sans-serif;
+    }
+
+    .page {
+      min-height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      padding: max(10px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) max(52px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+      box-sizing: border-box;
+      /* 幅のばらつきのある縦ストライプ */
+      background: repeating-linear-gradient(
+        90deg,
+        var(--stripe-a) 0 22px,
+        var(--stripe-b) 22px 48px,
+        var(--stripe-c) 48px 70px,
+        var(--stripe-b) 70px 96px
+      );
+    }
+
+    /* 放送画面風：角丸＋細い黒枠（オリジナルに近い外周） */
+    .page::before {
+      content: "";
+      position: absolute;
+      top: max(6px, env(safe-area-inset-top));
+      right: max(6px, env(safe-area-inset-right));
+      bottom: max(6px, env(safe-area-inset-bottom));
+      left: max(6px, env(safe-area-inset-left));
+      border-radius: clamp(10px, 2vw, 20px);
+      border: 1.5px solid #0d0d0d;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .oval {
+      /* 縦方向いっぱいに近い楕円（約90vh）／横は古典的なワイド楕円比 */
+      --oval-h: min(90dvh, 90svh, 90vh, 920px);
+      height: var(--oval-h);
+      width: min(96vw, calc(var(--oval-h) * 1.62));
+      max-width: 100%;
+      border-radius: 50%;
+      position: relative;
+      z-index: 1;
+      border: 1.5px solid #15181c;
+      /* メタリック：下層ラジアル＋水平シルバー帯＋上からのハイライト */
+      background:
+        linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.26) 0%,
+          rgba(255, 255, 255, 0) 38%,
+          rgba(15, 22, 32, 0.12) 100%
+        ),
+        linear-gradient(
+          90deg,
+          #8b95a3 0%,
+          #c5ced8 22%,
+          #eef2f6 48%,
+          #d2dae3 62%,
+          #9aa5b3 100%
+        ),
+        radial-gradient(ellipse 100% 92% at 50% 34%, #ffffff 0%, #e4eaf0 28%, #b4bec9 55%, #7c8795 82%, #5f6978 100%);
+      box-shadow:
+        inset 0 3px 10px rgba(255, 255, 255, 0.55),
+        inset 0 -14px 36px rgba(20, 28, 38, 0.35),
+        0 10px 40px rgba(0, 0, 0, 0.28);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .face {
+      /* 直径＝楕円の高さの約90%（オリジナルに近い縦いっぱいの文字盤）。幅が狭いときは親幅内に収める */
+      --face-d: min(calc(var(--oval-h) * 0.9), calc(100% - 24px));
+      /* 時点の●（現状から約半分の直径） */
+      --hour-dot-d: clamp(1.375rem, calc(var(--face-d) * 0.054), 2.375rem);
+      /* 短針・長針の根元（軸付近）の描画幅を共通にする */
+      --hand-pivot-w: clamp(2rem, calc(var(--face-d) * 0.076), 5rem);
+      width: var(--face-d);
+      height: var(--face-d);
+      border-radius: 50%;
+      background: var(--face);
+      position: relative;
+      overflow: visible;
+      box-shadow:
+        inset 0 0 40px rgba(0, 0, 0, 0.92),
+        0 0 0 1px rgba(0, 0, 0, 0.65);
+    }
+
+    .face-inner {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      z-index: 0;
+    }
+
+    /* 中心から伸びる軸ごとに、縁側へ分目盛り or 時点のドット */
+    .ray {
+      position: absolute;
+      left: 50%;
+      bottom: 50%;
+      width: 0;
+      height: 46%;
+      transform-origin: bottom center;
+      transform: rotate(var(--a));
+      pointer-events: none;
+    }
+
+    .ray-min {
+      position: absolute;
+      left: -2.5px;
+      top: 0;
+      width: 5px;
+      height: 18px;
+      background: var(--mark);
+      border-radius: 2px;
+      box-shadow: 0 0 1px rgba(255, 255, 255, 0.35);
+    }
+
+    .ray-hour {
+      position: absolute;
+      width: var(--hour-dot-d, 3rem);
+      height: var(--hour-dot-d, 3rem);
+      left: calc(-0.5 * var(--hour-dot-d, 3rem));
+      top: calc(var(--hour-dot-d, 3rem) * -0.42);
+      background: var(--mark);
+      border-radius: 50%;
+      box-shadow: 0 0 3px rgba(255, 255, 255, 0.45);
+    }
+
+    .face-nums {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      pointer-events: none;
+      /* メモリより上・針より下 */
+      z-index: 5;
+    }
+
+    /* HTMLテキストではなく SVG で数字を描画（環境差で消える問題を避ける） */
+    .face-numerals {
+      display: block;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+    }
+
+    .face-numerals text {
+      text-anchor: middle;
+      dominant-baseline: central;
+      font-family: system-ui, -apple-system, "Segoe UI", "Meiryo", sans-serif;
+      font-weight: 900;
+      fill: #f5f5f5;
+      stroke: #050608;
+      stroke-width: 0.55;
+      paint-order: stroke fill;
+      letter-spacing: -0.06em;
+    }
+
+    .pivot {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 20px;
+      height: 20px;
+      margin: -10px 0 0 -10px;
+      background: var(--mark);
+      border-radius: 50%;
+      z-index: 30;
+      box-shadow: 0 0 0 3px var(--face);
+    }
+
+    .hand {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      /* 箱の下端＝文字盤中心。横方向も自箱の半分で中央に一致 */
+      transform: translate(-50%, -100%);
+      line-height: 0;
+      pointer-events: none;
+      z-index: 10;
+      overflow: visible;
+    }
+
+    .hand-rot {
+      display: block;
+      width: 100%;
+      height: 100%;
+      transform-origin: bottom center;
+    }
+
+    /* 秒針：カチッと1秒刻み＋行き過ぎて少し戻る（JS が transition を切り替える） */
+    #secondHandRot {
+      will-change: transform;
+    }
+
+    /* 根元幅は共通変数。SVG は縦横独立スケールで箱にフィット（根元の見かけ幅を一致） */
+    .hand.hand-hour {
+      width: var(--hand-pivot-w, clamp(2rem, 4vw, 5rem));
+      height: calc(var(--face-d, 52vmin) * 0.325);
+      max-width: 46%;
+    }
+
+    .hand.hand-minute {
+      width: var(--hand-pivot-w, clamp(2rem, 4vw, 5rem));
+      height: calc(var(--face-d, 52vmin) * 0.468);
+      max-width: 46%;
+    }
+
+    /* 秒針はさらに細く */
+    #secondHand.hand {
+      z-index: 12;
+      width: max(2px, calc(var(--face-d, 52vmin) * 0.010));
+      height: calc(var(--face-d, 52vmin) * 0.445);
+      max-width: 40%;
+    }
+
+    .hand-hour .hand-skel-svg,
+    .hand-minute .hand-skel-svg {
+      display: block;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      color: var(--mark);
+      margin: 0;
+    }
+
+    .hand-second {
+      display: block;
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      background: linear-gradient(to top, var(--mark) 96%, transparent);
+      border-radius: 1px;
+      box-shadow: 0 0 1px rgba(255, 255, 255, 0.3);
+    }
+
+    .logo {
+      position: fixed;
+      right: clamp(12px, 3vw, 28px);
+      bottom: clamp(10px, 2.5vw, 24px);
+      color: #fff;
+      font-weight: 800;
+      font-style: italic;
+      font-size: clamp(1.5rem, 4.5vw, 2.5rem);
+      letter-spacing: 0.06em;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+      user-select: none;
+    }
+
+    .hint {
+      position: fixed;
+      left: 50%;
+      bottom: 8px;
+      transform: translateX(-50%);
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.75);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+      white-space: nowrap;
+      opacity: 0;
+      transition: opacity 0.4s;
+      pointer-events: none;
+    }
+
+    .hint.show { opacity: 1; }
+  </style>
+</head>
+<body>
+  <div class="page" id="page">
+    <div class="oval">
+      <div class="face" id="face">
+        <div class="face-inner" id="marks"></div>
+        <div class="hand hand-hour" id="hourHand">
+          <div class="hand-rot" id="hourHandRot">
+            <svg class="hand-skel-svg" viewBox="-17 0 34 136" preserveAspectRatio="none" aria-hidden="true">
+              <path
+                fill="currentColor"
+                fill-rule="evenodd"
+                d="M -14 128 L 14 128 L 3.6 44 L 0 5 L -3.6 44 Z M 0 30 L 6.2 116 L -6.2 116 Z"
+              />
+            </svg>
+          </div>
+        </div>
+        <div class="hand hand-minute" id="minuteHand">
+          <div class="hand-rot" id="minuteHandRot">
+            <svg class="hand-skel-svg" viewBox="-18 0 36 270" preserveAspectRatio="none" aria-hidden="true">
+              <path
+                fill="currentColor"
+                fill-rule="evenodd"
+                d="M -14 244 L 14 244 L 3.4 40 L 0 5 L -3.4 40 Z M 0 30 L 6.8 228 L -6.8 228 Z"
+              />
+              <line x1="0" y1="246" x2="0" y2="270" stroke="currentColor" stroke-width="5.6" stroke-linecap="round" />
+            </svg>
+          </div>
+        </div>
+        <div class="hand" id="secondHand">
+          <div class="hand-rot" id="secondHandRot">
+            <div class="hand-second"></div>
+          </div>
+        </div>
+        <div class="face-nums">
+          <svg
+            class="face-numerals"
+            viewBox="-52 -52 104 104"
+            preserveAspectRatio="xMidYMid meet"
+            role="img"
+            aria-label="文字盤の数字 12, 3, 6, 9"
+          >
+            <defs>
+              <filter id="nhk-num-sh" x="-50%" y="-50%" width="200%" height="200%">
+                <feDropShadow dx="0" dy="0.7" stdDeviation="0.85" flood-color="#000" flood-opacity="0.5" />
+              </filter>
+            </defs>
+            <!-- 数字リング半径 ≈40（viewBox 座標） -->
+            <g filter="url(#nhk-num-sh)">
+              <text
+                x="0"
+                y="-40"
+                font-size="10.5"
+                letter-spacing="-0.12em"
+              >12</text>
+              <text x="40" y="0" font-size="11.5">3</text>
+              <text x="0" y="40" font-size="11.5">6</text>
+              <text x="-40" y="0" font-size="11.5">9</text>
+            </g>
+          </svg>
+        </div>
+        <div class="pivot"></div>
+      </div>
+    </div>
+    <div class="logo">NHK</div>
+    <div class="hint" id="hint">画面を一度タップすると、ブラウザの制限で止まっている場合に音が鳴ります。</div>
+  </div>
+
+  <audio id="chime" preload="auto" src="jihou-sine-2f.mp3"></audio>
+
+  <script>
+    (function () {
+      var marks = document.getElementById("marks");
+      for (var i = 0; i < 60; i++) {
+        var ray = document.createElement("div");
+        ray.className = "ray";
+        ray.style.setProperty("--a", i * 6 + "deg");
+        var inner = document.createElement("div");
+        inner.className = i % 5 === 0 ? "ray-hour" : "ray-min";
+        ray.appendChild(inner);
+        marks.appendChild(ray);
+      }
+
+      var hourHandRot = document.getElementById("hourHandRot");
+      var minuteHandRot = document.getElementById("minuteHandRot");
+      var secondHandRot = document.getElementById("secondHandRot");
+      var chime = document.getElementById("chime");
+      var hint = document.getElementById("hint");
+      var page = document.getElementById("page");
+
+      var lastChimeKey = -1;
+      var lastSecInt = null;
+      var secondOvershootDeg = 2.2;
+      var secondSettleMs = 0.38;
+
+      function updateHands() {
+        var now = new Date();
+        var ms = now.getMilliseconds();
+        var secFloat = now.getSeconds() + ms / 1000;
+        var m = now.getMinutes() + secFloat / 60;
+        var h = (now.getHours() % 12) + m / 60;
+
+        hourHandRot.style.transform = "rotate(" + h * 30 + "deg)";
+        minuteHandRot.style.transform = "rotate(" + m * 6 + "deg)";
+
+        var secInt = now.getSeconds();
+        if (secInt !== lastSecInt) {
+          var targetDeg = secInt * 6;
+          if (lastSecInt !== null) {
+            secondHandRot.style.transition = "none";
+            secondHandRot.style.transform =
+              "rotate(" + (targetDeg + secondOvershootDeg) + "deg)";
+            void secondHandRot.offsetWidth;
+            secondHandRot.style.transition =
+              "transform " + secondSettleMs + "s cubic-bezier(0.34, 1.18, 0.52, 1)";
+            secondHandRot.style.transform = "rotate(" + targetDeg + "deg)";
+          } else {
+            secondHandRot.style.transition = "none";
+            secondHandRot.style.transform = "rotate(" + targetDeg + "deg)";
+          }
+          lastSecInt = secInt;
+        }
+
+        var min = now.getMinutes();
+        var sec = now.getSeconds();
+        /* 5分ごとの :00 のちょうど3秒前 → 分が 4,9,14,… で秒が 57 */
+        if (min % 5 === 4 && sec === 57) {
+          var key = now.getHours() * 60 + min;
+          if (key !== lastChimeKey) {
+            lastChimeKey = key;
+            chime.currentTime = 0;
+            var p = chime.play();
+            if (p && typeof p.catch === "function") {
+              p.catch(function () {
+                hint.classList.add("show");
+              });
+            }
+          }
+        } else if (sec > 57) {
+          lastChimeKey = -1;
+        }
+      }
+
+      function loop() {
+        updateHands();
+        requestAnimationFrame(loop);
+      }
+
+      requestAnimationFrame(loop);
+
+      page.addEventListener(
+        "click",
+        function () {
+          chime.play().catch(function () {});
+          hint.classList.remove("show");
+        },
+        { once: false }
+      );
+    })();
+  </script>
+</body>
+</html>
