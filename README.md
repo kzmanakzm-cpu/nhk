@@ -10,6 +10,7 @@
 |-----------|------|
 | `index.html` | マークアップ・スタイル・針の制御・時報ロジックをすべて内包 |
 | `jihou-sine-2f.mp3` | 時報用の短い音声（`index.html` と同じディレクトリに配置） |
+| `.nojekyll` | GitHub Pages で Jekyll を無効化し、静的ファイルをそのまま配信しやすくする（空ファイルでよい） |
 
 音声ファイルが無い場合でも時計表示は動きますが、時報は鳴りません。
 
@@ -20,6 +21,21 @@
 3. `index.html` をブラウザで開く。
 
 ローカルで `file://` として開いても動作します。CORS の都合で何か不具合が出る場合は、簡易の静的サーバー（例: `npx serve .`）で同じディレクトリを配信してください。
+
+### GitHub Pages で公開する
+
+リポジトリは [kzmanakzm-cpu/nhk](https://github.com/kzmanakzm-cpu/nhk) に置いています。GitHub Pages を有効にすると、次の URL で `index.html` が開きます（反映まで 1〜2 分かかることがあります）。
+
+**公開 URL**: [https://kzmanakzm-cpu.github.io/nhk/](https://kzmanakzm-cpu.github.io/nhk/)
+
+1. GitHub のリポジトリを開く → **Settings**（設定）
+2. 左メニュー **Pages**
+3. **Build and deployment** の **Source** で **Deploy from a branch** を選ぶ
+4. **Branch** を `main`、フォルダを **`/ (root)`** にして **Save**
+
+これで `main` ブランチのルートにある `index.html` がサイトのトップとして配信されます。音声は相対パス `jihou-sine-2f.mp3` のため、リポジトリに含まれていれば同じ Pages 上でも読み込まれます。
+
+リポジトリ直下の **`.nojekyll`** は、GitHub Pages が Jekyll としてサイトを解釈するのを避け、静的ファイルをそのまま配信しやすくするための空ファイルです。
 
 ### ブラウザの自動再生ポリシー
 
